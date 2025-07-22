@@ -526,6 +526,13 @@ private fun EditScreenContainer(
                             ) {
                                 connectionState.value = connectionState.value.copy(enableEncryption = it)
                             }
+                            InputCheck(
+                                title = stringResource(id = R.string.edit_enable_security_signature),
+                                value = connectionState.value.enableSecuritySignature,
+                                focusManager = focusManager,
+                            ) {
+                                connectionState.value = connectionState.value.copy(enableSecuritySignature = it)
+                            }
                         }
                     }
 

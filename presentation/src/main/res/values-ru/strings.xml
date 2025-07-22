@@ -39,6 +39,7 @@
     <string name="edit_port_hint">Если пусто то по умолчанию</string>
     <string name="edit_enable_dfs_label">Включить DFS (Distributed File System)</string>
     <string name="edit_enable_encryption_label">Включить шифрование</string>
+    <string name="edit_enable_security_signature">Включить цифровую подпись</string>
     <string name="edit_directory_search_a11y">Просмотр</string>
     <string name="edit_user_title">Пользователь</string>
     <string name="edit_user_hint">Неправильно если анонимно</string>

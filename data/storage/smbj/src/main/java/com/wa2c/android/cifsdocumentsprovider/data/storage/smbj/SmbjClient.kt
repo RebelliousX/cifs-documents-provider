@@ -7,6 +7,7 @@ import com.hierynomus.mserref.NtStatus
 import com.hierynomus.msfscc.FileAttributes
 import com.hierynomus.msfscc.fileinformation.FileAllInformation
 import com.hierynomus.mssmb2.SMB2CreateDisposition
+import com.hierynomus.mssmb2.SMB2Dialect
 import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.mssmb2.SMBApiException
 import com.hierynomus.protocol.commons.EnumWithValue
@@ -88,10 +89,33 @@ class SmbjClient(
      */
     private fun getSession(connection: StorageConnection.Cifs, forced: Boolean = false): Session {
         return if (!forced) { sessionCache[connection]?.takeIf { it.connection.isConnected } } else { null } ?: let {
-            val config = SmbConfig.builder()
+            val configBuilder = SmbConfig.builder()
                 .withDfsEnabled(connection.enableDfs)
                 .withEncryptData(connection.enableEncryption)
-                .build()
+
+            if (connection.enableEncryption) {
+                // encryption is a must with smb 3.x dialects
+                configBuilder.withDialects(
+                    SMB2Dialect.SMB_3_1_1,
+                    SMB2Dialect.SMB_3_0_2,
+                    SMB2Dialect.SMB_3_0
+                )
+            } else {
+                // Signing is required for SMB dialects 3.x. Connection testing
+                // will throw an error that signing can not be disabled for 3.x.
+                // So, we opt for SMB dialect 2.x *ONLY* if both encryption and signing
+                // are both disabled. This resulting in a big speed boost ranging from 25%
+                // to 50% or higher. Even 300%+ is possible if accompanied with Safe Data Transfer.
+                if (!connection.enableSecuritySignature) {
+                    configBuilder.withDialects(
+                        SMB2Dialect.SMB_2_1,
+                        SMB2Dialect.SMB_2_0_2
+                    )
+                }
+            }
+            configBuilder.withSigningEnabled(connection.enableSecuritySignature)
+
+            val config = configBuilder.build()
             val client = SMBClient(config)
             val port = connection.port?.toIntOrNull()
 

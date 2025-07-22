@@ -8,10 +8,10 @@
     <string name="app_summary">الوصول إلى التخزين عبر الإنترنت</string>
     <string name="general_accept">حسنا</string>
     <string name="general_close">إغلاق</string>
-    <string name="general_warning">انتباه</string>
+    <string name="general_warning">إنتبه</string>
     <string name="general_yes">نعم</string>
     <string name="general_no">لا</string>
-    <string name="general_delete">يمسح</string>
+    <string name="general_delete">إمسح</string>
     <string name="general_back">خلف</string>
     <string name="general_copy_clipboard_message">نسخ إلى الحافظة.</string>
     
@@ -19,8 +19,8 @@
     <string name="home_open_file">فتح</string>
     <string name="home_open_settings">الإعدادات</string>
     <string name="home_open_file_ng_message">أضف أي إتصال</string>
-    <string name="home_add_connection_input">مدخل</string>
-    <string name="home_add_connection_search">يبحث</string>
+    <string name="home_add_connection_input">أدخل</string>
+    <string name="home_add_connection_search">إبحث</string>
     
     <!-- Edit Screen -->
     <string name="edit_title">إتصال</string>
@@ -33,17 +33,18 @@
     <string name="edit_domain_title">النطاق</string>
     <string name="edit_domain_hint">الإدخال حسب الحاجة</string>
     <string name="edit_host_title">المضيف</string>
-    <string name="edit_host_hint">عنوان ال ( آي بي ) للمضيف / الخادم</string>
+    <string name="edit_host_hint">عنوان ال IP للمضيف / الخادم</string>
     <string name="edit_host_select_a11y">تصفح</string>
     <string name="edit_port_title">بوابة</string>
     <string name="edit_port_hint">أهمل إن كان خاليا</string>
-    <string name="edit_enable_dfs_label">فعّل - دي إف أس - ( نظام الملفات الموزعة )</string>
-    <string name="edit_enable_encryption_label">تمكين التشفير</string>
+    <string name="edit_enable_dfs_label">تفعيل DFS ( نظام الملفات الموزعة )</string>
+    <string name="edit_enable_encryption_label">تفعيل التشفير</string>
+    <string name="edit_enable_security_signature">تفعيل توقيع الأمان</string>
     <string name="edit_directory_search_a11y">تصفح</string>
     <string name="edit_user_title">المستخدم</string>
-    <string name="edit_user_hint">باطل إذا كان مجهول</string>
+    <string name="edit_user_hint">غير صالح إذا كان مجهول</string>
     <string name="edit_password_title">كلمة المرور</string>
-    <string name="edit_password_hint">باطل إذا كان مجهول</string>
+    <string name="edit_password_hint">غير صالح إذا كان مجهول</string>
     <string name="edit_anonymous_label">مجهول</string>
     <string name="edit_key_title">مفتاح سري</string>
     <string name="edit_key_hint">مفتاح سري</string>
@@ -65,12 +66,12 @@
     <string name="edit_option_section_title">خيارات</string>
     <string name="edit_option_safe_transfer_label">نقل بيانات آمن</string>
     <string name="edit_option_read_only_label">يقرأ فقط</string>
-    <string name="edit_option_extension_label">أضف وصلة عند الحفظ</string>
+    <string name="edit_option_extension_label">أضف وصلة إلى الملف عند الحفظ</string>
     <string name="edit_option_thumbnail_label">ظفري</string>
     <string name="edit_option_thumbnail_image">صورة</string>
     <string name="edit_option_thumbnail_audio">صوتي</string>
     <string name="edit_option_thumbnail_video">فيديو</string>
-    <string name="edit_option_thumbnail_disabled">عاجز</string>
+    <string name="edit_option_thumbnail_disabled">غير مفعل</string>
     <string name="edit_info_section_title">معلومات</string>
     <string name="edit_storage_uri_title">عنوان التخزين</string>
     <string name="edit_provider_uri_title">عنوان التشارك</string>
@@ -95,15 +96,15 @@
     <string name="host_set_manually">تحديد يدويا</string>
     <string name="host_select_confirmation_message">أدخل البيانات المختارة لتعديل عليها في الأنموذج</string>
     <string name="host_select_host_name">إسم المضيف</string>
-    <string name="host_select_ip_address">عنوان ال ( آي بي )</string>
+    <string name="host_select_ip_address">عنوان ال IP</string>
     <string name="host_sort_button">فرز</string>
     <string name="host_reload_button">إعادة تحميل</string>
     <string name="host_sort_type_detection_ascend">تحرى (تصاعديا)</string>
     <string name="host_sort_type_detection_descend">تحرى (تنازليا)</string>
     <string name="host_sort_type_host_name_ascend">إسم المضيف (تصاعديا)</string>
     <string name="host_sort_type_host_name_descend">إسم المضيف (تنازليا)</string>
-    <string name="host_sort_type_ip_address_ascend">عنوان ال ( آي بي ) (تصاعديا)</string>
-    <string name="host_sort_type_ip_address_descend">عنوان ال ( آي بي ) (تنازليا)</string>
+    <string name="host_sort_type_ip_address_ascend">عنوان ال IP (تصاعديا)</string>
+    <string name="host_sort_type_ip_address_descend">عنوان ال IP (تنازليا)</string>
     
     <!-- Folder Screen -->
     <string name="folder_title">مجلد</string>
@@ -123,7 +124,7 @@
     <string name="settings_transfer_export">تصدير إعدادات الاتصال</string>
     <string name="settings_transfer_export_dialog_password">كلمة المرور (1-32 حرفًا)</string>
     <string name="settings_transfer_export_dialog_check">هدف التصدير</string>
-    <string name="settings_transfer_export_dialog_button">يصدّر</string>
+    <string name="settings_transfer_export_dialog_button">صدّر</string>
     <string name="settings_transfer_export_message">تم تصدير %1$d من البيانات.</string>
     <string name="settings_transfer_export_error">فشل تصدير البيانات.</string>
     <string name="settings_transfer_import">استيراد إعدادات الاتصال</string>
@@ -131,11 +132,11 @@
     <string name="settings_transfer_import_dialog_option_replace">استبدال كافة البيانات</string>
     <string name="settings_transfer_import_dialog_option_duplicate">تغيير المعرف (تغيير URI المشترك)</string>
     <string name="settings_transfer_import_dialog_option_overwrite">الكتابة فوق</string>
-    <string name="settings_transfer_import_dialog_option_ignore">يتجاهل</string>
+    <string name="settings_transfer_import_dialog_option_ignore">تجاهل</string>
     <string name="settings_transfer_import_dialog_option_append">تغيير المعرف (تغييرات عنوان URL)</string>
-    <string name="settings_transfer_import_dialog_button">يستورد</string>
-    <string name="settings_transfer_import_message">تم استيراد %1$d من البيانات.</string>
-    <string name="settings_transfer_import_error">فشل استيراد البيانات.</string>
+    <string name="settings_transfer_import_dialog_button">إستورد</string>
+    <string name="settings_transfer_import_message">تم إستيراد %1$d من البيانات.</string>
+    <string name="settings_transfer_import_error">فشل إستيراد البيانات.</string>
     <string name="settings_section_info">معلومات</string>
     <string name="settings_info_known_hosts">المضيفين الموثوقين عبر SSH</string>
     <string name="settings_info_known_hosts_host">المضيف</string>
@@ -158,7 +159,7 @@
     <string name="send_state_failure">فشل</string>
     <string name="send_state_cancel">ملغى</string>
     <string name="send_exit_confirmation_message">إلغاء كل عمليات النقل و الخروج من التطبيق</string>
-    <string name="send_overwrite_confirmation_message">(استبدال الملفات) Overwrite %1$d files.</string>
+    <string name="send_overwrite_confirmation_message">(إستبدال الملفات) Overwrite %1$d files.</string>
     
     <!-- DocumentsProvider -->
     <string name="provider_error_message">حصل خطأ ما</string>
@@ -167,7 +168,7 @@
     <string name="notification_channel_name_provider">فتح ملف</string>
     <string name="notification_title_provider">عملية فتح الملف</string>
     <string name="notification_channel_name_send">نقل البيانات</string>
-    <string name="notification_title_send_completed">تمام</string>
+    <string name="notification_title_send_completed">مكتمل</string>
     
     <!-- Theme Enum -->
     <string name="enum_theme_default">الوضع الطبيعي</string>

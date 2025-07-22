@@ -61,6 +61,7 @@ sealed class StorageConnection {
         val domain: String?,
         val enableDfs: Boolean,
         val enableEncryption: Boolean = false,
+        val enableSecuritySignature: Boolean = true,
     ) : StorageConnection()
 
     /**

@@ -26,6 +26,7 @@ data class RemoteConnection(
     val port: String? = null,
     val enableDfs: Boolean = false,
     val enableEncryption: Boolean = false,
+    val enableSecuritySignature: Boolean = true,
     val folder: String? = null,
     val user: String? = null,
     val password: String? = null,
@@ -74,6 +75,7 @@ data class RemoteConnection(
                 || this.port != other.port
                 || this.enableDfs != other.enableDfs
                 || this.enableEncryption != other.enableEncryption
+                || this.enableSecuritySignature != other.enableSecuritySignature
                 || this.folder != other.folder
                 || this.user != other.user
                 || this.password != other.password
