@@ -1,5 +1,7 @@
 package com.wa2c.android.cifsdocumentsprovider.data.storage.smbj
 
+import android.os.Handler
+import android.os.Looper
 import android.os.ProxyFileDescriptorCallback
 import android.util.LruCache
 import com.hierynomus.msdtyp.AccessMask
@@ -44,6 +46,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * SMBJ Client
@@ -51,6 +55,18 @@ import kotlinx.coroutines.withContext
 class SmbjClient(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ): StorageClient {
+    
+    /** Active file count */
+    private val activeFileCount = AtomicInteger(0)
+
+    /** Active files by URI */
+    private val activeFiles = ConcurrentHashMap<String, Int>()
+
+    /** Handler for delayed operations */
+    private val handler = Handler(Looper.getMainLooper())
+
+    /** Sequential operation window */
+    private val sequentialWindowMs = 250
 
     /** Session cache */
     private val sessionCache = object : LruCache<StorageConnection, Session>(OPEN_FILE_LIMIT_MAX) {
@@ -390,15 +406,48 @@ class SmbjClient(
         return runHandling(request) {
             val diskFile = useDiskShare(request) {
                 openDiskFile(it, request.sharePath, isRead = mode == AccessMode.R, existsRequired = true)
-            }.takeIf { !it.fileInformation.standardInformation.isDirectory } ?: throw StorageException.File.NotFound()
+            }.takeIf { !it.fileInformation.standardInformation.isDirectory }
+                ?: throw StorageException.File.NotFound()
+
+            val fileUri = request.uri
+
+            // Get current connection counts
+            val currentFileCount = activeFiles.getOrDefault(fileUri, 0) + 1
+            val currentGlobalCount = activeFileCount.incrementAndGet()
+
+            // Update file-specific count
+            activeFiles[fileUri] = currentFileCount
+
+            // Determine callback type:
+            // Use safe callback if:
+            // 1. Explicitly enabled in connection settings
+            // 2. Multiple files open globally
+            // Use Native I/O (non-safe proxy callback) only if there is one file opened globally
+            val useSafe = request.connection.safeTransfer || currentGlobalCount > 1
+
             val release: suspend () -> Unit = {
-                diskFile.closeSilently()
-                onFileRelease()
+                try {
+                    diskFile.closeSilently()
+                } finally {
+                    // Schedule cleanup after sequential window
+                    handler.postDelayed({
+                        // Decrement global count
+                        activeFileCount.decrementAndGet()
+
+                        // Decrement file-specific count
+                        activeFiles.computeIfPresent(fileUri) { _, count ->
+                            if (count > 1) count - 1 else null
+                        }
+                    }, sequentialWindowMs.toLong())
+
+                    onFileRelease()
+                }
             }
 
-            if (request.connection.safeTransfer) {
+            if (useSafe) {
                 SmbjProxyFileCallbackSafe(diskFile, mode, release)
             } else {
+                // Use buffered for single file, even with multiple connections
                 SmbjProxyFileCallback(diskFile, mode, release)
             }
         }
