@@ -61,7 +61,9 @@ sealed class StorageConnection {
         val domain: String?,
         val enableDfs: Boolean,
         val enableEncryption: Boolean = false,
-        val enableSecuritySignature: Boolean = true,
+        // true for SMBJ and false for jCIFS-NG
+        val enableSmbjSecuritySignature: Boolean = true,
+        val enableJcifsSecuritySignature: Boolean = false,
     ) : StorageConnection()
 
     /**

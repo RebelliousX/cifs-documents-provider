@@ -122,14 +122,14 @@ class SmbjClient(
                 // So, we opt for SMB dialect 2.x *ONLY* if both encryption and signing
                 // are both disabled. This resulting in a big speed boost ranging from 25%
                 // to 50% or higher. Even 300%+ is possible if accompanied with Safe Data Transfer.
-                if (!connection.enableSecuritySignature) {
+                if (!connection.enableSmbjSecuritySignature) {
                     configBuilder.withDialects(
                         SMB2Dialect.SMB_2_1,
                         SMB2Dialect.SMB_2_0_2
                     )
                 }
             }
-            configBuilder.withSigningEnabled(connection.enableSecuritySignature)
+            configBuilder.withSigningEnabled(connection.enableSmbjSecuritySignature)
 
             val config = configBuilder.build()
             val client = SMBClient(config)

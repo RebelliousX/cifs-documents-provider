@@ -91,6 +91,7 @@ class JCifsNgClient(
                 setProperty("jcifs.smb.client.minVersion", "SMB202")
                 setProperty("jcifs.smb.client.maxVersion", "SMB311")
             }
+            setProperty("jcifs.smb.client.signingPreferred", connection.enableJcifsSecuritySignature.toString())
             setProperty("jcifs.smb.client.responseTimeout", READ_TIMEOUT.toString())
             setProperty("jcifs.smb.client.connTimeout", CONNECTION_TIMEOUT.toString())
             setProperty("jcifs.smb.client.attrExpirationPeriod", CACHE_TIMEOUT.toString())

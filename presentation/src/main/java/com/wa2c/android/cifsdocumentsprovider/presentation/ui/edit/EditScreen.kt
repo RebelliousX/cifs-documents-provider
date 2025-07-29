@@ -526,12 +526,23 @@ private fun EditScreenContainer(
                             ) {
                                 connectionState.value = connectionState.value.copy(enableEncryption = it)
                             }
+                            // for SMBJ default value for signing is true
                             InputCheck(
                                 title = stringResource(id = R.string.edit_enable_security_signature),
-                                value = connectionState.value.enableSecuritySignature,
+                                value = connectionState.value.enableSmbjSecuritySignature,
                                 focusManager = focusManager,
                             ) {
-                                connectionState.value = connectionState.value.copy(enableSecuritySignature = it)
+                                connectionState.value = connectionState.value.copy(enableSmbjSecuritySignature = it)
+                            }
+                        } else if (connectionState.value.storage == StorageType.JCIFS ||
+                            connectionState.value.storage == StorageType.JCIFS_LEGACY) {
+                            // jCIFS/jCIFS-NG default value for signing is false
+                            InputCheck(
+                                title = stringResource(id = R.string.edit_enable_security_signature),
+                                value = connectionState.value.enableJcifsSecuritySignature,
+                                focusManager = focusManager,
+                            ) {
+                                connectionState.value = connectionState.value.copy(enableJcifsSecuritySignature = it)
                             }
                         }
                     }
