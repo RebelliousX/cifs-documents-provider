@@ -23,212 +23,127 @@
  */
 package com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.utils
 
-import com.wa2c.android.cifsdocumentsprovider.common.utils.logD
-import com.wa2c.android.cifsdocumentsprovider.common.utils.logE
-import com.wa2c.android.cifsdocumentsprovider.common.values.BUFFER_SIZE
 import kotlinx.coroutines.*
 import java.io.Closeable
-import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.min
 
 /**
- * Efficient buffered reader for large data streams with background pre-fetching.
- *
- * Features:
- * - On-demand reading with LRU caching
- * - Background pre-fetching of adjacent buffers
- * - Thread-safe operations
- * - Optimized for both sequential and random access patterns
- *
- * @param streamSize Total size of the data stream in bytes
- * @param bufferSize Size of individual data buffers (default: 512KB)
- * @param cacheCapacity Maximum number of buffers to keep in memory (default: 50)
- * @param coroutineContext Execution context for background operations
- * @param readBackgroundAsync Asynchronous data reader function
+ * Random-access safe SMB background buffer reader.
+ * Always returns correct sequential bytes for any offset/length.
  */
 class BackgroundBufferReader(
     private val streamSize: Long,
     private val bufferSize: Int = DEFAULT_BUFFER_SIZE,
-    private val cacheCapacity: Int = DEFAULT_CAPACITY,
-    override val coroutineContext: CoroutineContext = Dispatchers.IO + Job(),
-    private val readBackgroundAsync: CoroutineScope.(start: Long, array: ByteArray, off: Int, len: Int) -> Int
+    private val maxCacheBlocks: Int = DEFAULT_CACHE_BLOCKS,
+    override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob(),
+    private val readBackgroundAsync: suspend (start: Long, array: ByteArray, off: Int, len: Int) -> Int
 ) : Closeable, CoroutineScope {
 
-    /**
-     * LRU cache for data buffers. Maintains most recently used buffers and evicts
-     * least recently used buffers when capacity is exceeded.
-     */
-    private val cache = object : LinkedHashMap<Long, DataBuffer>(cacheCapacity, 0.75f, true) {
+    /** LRU cache of blocks */
+    private val cache = object : LinkedHashMap<Long, DataBuffer>(maxCacheBlocks, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, DataBuffer>?): Boolean {
-            return size > cacheCapacity
+            return size > maxCacheBlocks
         }
     }
 
-    /** Synchronization lock for thread-safe cache access */
+    /** Pending block fetches to avoid duplicate reads */
+    private val pendingFetches = ConcurrentHashMap<Long, Deferred<DataBuffer>>()
+
     private val cacheLock = Any()
 
     /**
-     * Reads data from the stream into the provided buffer.
-     *
-     * @param readPosition Starting position in the stream (bytes)
-     * @param readSize Number of bytes to read
-     * @param readData Destination buffer for read data
-     * @return Actual number of bytes read (0 if end of stream)
+     * Read exact data into readData. Will suspend until all requested bytes are ready or EOF.
      */
-    fun readBuffer(readPosition: Long, readSize: Int, readData: ByteArray): Int {
-        // Validate input parameters
-        if (readData.isEmpty()) return 0
+    suspend fun readBuffer(readPosition: Long, readSize: Int, readData: ByteArray): Int {
+        if (readSize <= 0 || readData.isEmpty()) return 0
 
-        // Calculate maximum readable bytes (considering stream boundaries)
         val maxSize = min(readSize, readData.size).let {
             if (readPosition + it > streamSize) (streamSize - readPosition).toInt() else it
         }
         if (maxSize <= 0) return 0
 
-        var readOffset = 0
+        var totalRead = 0
         var currentPosition = readPosition
 
-        // Read data in segments that may span multiple buffers
-        while (readOffset < maxSize) {
-            // Calculate start position of current buffer block
-            val bufferStart = currentPosition / bufferSize * bufferSize
+        while (totalRead < maxSize) {
+            val blockStart = (currentPosition / bufferSize) * bufferSize
+            val blockOffset = (currentPosition - blockStart).toInt()
 
-            // Retrieve or load buffer containing current position
-            val buffer = getBuffer(bufferStart)
+            val block = getOrFetchBlock(blockStart)
 
-            // Calculate offset within current buffer
-            val bufferOffset = (currentPosition - bufferStart).toInt()
+            val toCopy = min(block.length - blockOffset, maxSize - totalRead)
+            if (toCopy <= 0) break // EOF
+            block.data.copyInto(readData, totalRead, blockOffset, blockOffset + toCopy)
 
-            // Determine bytes available in current buffer
-            val bytesToCopy = min(buffer.length - bufferOffset, maxSize - readOffset)
-
-            // Copy data from buffer to output
-            buffer.data.copyInto(
-                destination = readData,
-                destinationOffset = readOffset,
-                startIndex = bufferOffset,
-                endIndex = bufferOffset + bytesToCopy
-            )
-
-            // Update read state
-            readOffset += bytesToCopy
-            currentPosition += bytesToCopy
-
-            // Pre-fetch adjacent buffers for potential future access
-            prefetchAdjacentBuffers(bufferStart)
+            totalRead += toCopy
+            currentPosition += toCopy
         }
-        return readOffset
+
+        // Optional: prefetch next block to reduce lag
+        prefetchAround(currentPosition)
+
+        return totalRead
     }
 
     /**
-     * Retrieves buffer from cache or loads it asynchronously.
-     *
-     * @param bufferStart Start position of the requested buffer
-     * @return DataBuffer containing requested data
+     * Get a block, fetch if missing.
      */
-    private fun getBuffer(bufferStart: Long): DataBuffer {
-        return synchronized(cacheLock) {
-            cache[bufferStart] ?: runBlocking {
-                // Cache miss - load buffer synchronously
-                readBufferAsync(bufferStart).also {
-                    // Add to cache after loading
-                    cache[bufferStart] = it
+    private suspend fun getOrFetchBlock(blockStart: Long): DataBuffer {
+        synchronized(cacheLock) {
+            cache[blockStart]?.let { return it }
+        }
+
+        val job = pendingFetches.computeIfAbsent(blockStart) {
+            async {
+                val size = min(bufferSize.toLong(), streamSize - blockStart).toInt()
+                val data = ByteArray(size)
+                var readBytes = readBackgroundAsync(blockStart, data, 0, size)
+                if (readBytes in 1 until size) {
+                    readBytes += readBackgroundAsync(blockStart + readBytes, data, readBytes, size - readBytes)
                 }
+                val block = DataBuffer(blockStart, readBytes, data)
+                synchronized(cacheLock) { cache[blockStart] = block }
+                pendingFetches.remove(blockStart)
+                block
+            }
+        }
+
+        return job.await()
+    }
+
+    /**
+     * Prefetch next few blocks (async)
+     */
+    private fun prefetchAround(position: Long, count: Int = 2) {
+        val startBlock = (position / bufferSize) * bufferSize
+        for (i in 0 until count) {
+            val blockStart = startBlock + i * bufferSize
+            if (blockStart >= streamSize) break
+            synchronized(cacheLock) {
+                if (cache.containsKey(blockStart)) continue
+            }
+            if (!pendingFetches.containsKey(blockStart)) {
+                launch { getOrFetchBlock(blockStart) }
             }
         }
     }
 
-    /**
-     * Asynchronously reads a buffer from the data source.
-     *
-     * @param bufferStart Start position of buffer to read
-     * @return Loaded DataBuffer instance
-     */
-    private suspend fun readBufferAsync(bufferStart: Long): DataBuffer {
-        // Calculate valid read size (considering stream end)
-        val readSize = min(bufferSize.toLong(), streamSize - bufferStart).toInt()
-        if (readSize <= 0) return DataBuffer(bufferStart, 0, ByteArray(0))
-
-        val data = ByteArray(readSize)
-        // Read primary data segment
-        val size = readBackgroundAsync(bufferStart, data, 0, readSize)
-        val remain = readSize - size
-
-        // Handle partial reads by reading remaining data
-        return if (size > 0 && remain > 0) {
-            val subSize = readBackgroundAsync(bufferStart + size, data, size, remain)
-            DataBuffer(bufferStart, size + subSize, data)
-        } else {
-            DataBuffer(bufferStart, size, data)
-        }
-    }
-
-    /**
-     * Pre-fetches adjacent buffers in the background to optimize sequential access.
-     *
-     * @param bufferStart Reference position for determining adjacent buffers
-     */
-    private fun prefetchAdjacentBuffers(bufferStart: Long) {
-        launch {
-            // Determine previous and next buffer positions
-            listOf(bufferStart - bufferSize, bufferStart + bufferSize).forEach { position ->
-                // Validate position is within stream bounds
-                if (position >= 0 && position < streamSize) {
-                    synchronized(cacheLock) {
-                        // Only pre-fetch if not already in cache
-                        if (!cache.containsKey(position)) {
-                            cache[position] = runBlocking { readBufferAsync(position) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /** Releases all resources and cancels background operations */
     override fun close() {
-        coroutineContext.cancel()
+        cancel()
         synchronized(cacheLock) { cache.clear() }
+        pendingFetches.clear()
     }
 
-    /**
-     * Represents a data buffer in memory.
-     *
-     * @property streamPosition Start position in the stream (bytes)
-     * @property length Valid data length in the buffer (bytes)
-     * @property data Raw byte array containing the data
-     */
     data class DataBuffer(
         val streamPosition: Long,
         val length: Int,
         val data: ByteArray
-    ) {
-        /** Data end position (exclusive) */
-        val endPosition: Long get() = streamPosition + length
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            other as DataBuffer
-            return streamPosition == other.streamPosition &&
-                    length == other.length &&
-                    data.contentEquals(other.data)
-        }
-
-        override fun hashCode(): Int {
-            var result = streamPosition.hashCode()
-            result = 31 * result + length
-            result = 31 * result + data.contentHashCode()
-            return result
-        }
-    }
+    )
 
     companion object {
-        /** Default buffer size (512KB) */
-        private const val DEFAULT_BUFFER_SIZE = BUFFER_SIZE
-
-        /** Default cache capacity (30 buffers) */
-        private const val DEFAULT_CAPACITY = 30
+        private const val DEFAULT_BUFFER_SIZE = 512 * 1024 // 512 KB
+        private const val DEFAULT_CACHE_BLOCKS = 32        // ~16 MB cache
     }
 }

@@ -24,6 +24,9 @@ android {
         sourceCompatibility = javaVersion
         targetCompatibility = javaVersion
     }
+    kotlinOptions {
+        freeCompilerArgs = listOf("-XXLanguage:+BreakContinueInInlineLambdas")
+    }
 
     kotlin {
         jvmToolchain {

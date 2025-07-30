@@ -131,7 +131,6 @@ class SmbjClient(
                 }
             }
             configBuilder.withSigningEnabled(connection.enableSmbjSecuritySignature)
-            configBuilder.withBufferSize(BUFFER_SIZE)
 
             val config = configBuilder.build()
             val client = SMBClient(config)
