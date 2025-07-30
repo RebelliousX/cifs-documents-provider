@@ -14,7 +14,7 @@ const val DEFAULT_ENCODING = "UTF-8"
 
 const val CONNECTION_TIMEOUT = 10000
 const val READ_TIMEOUT = 10000
-const val BUFFER_SIZE = 1024 * 1024
+const val BUFFER_SIZE = 512 * 1024
 const val CACHE_TIMEOUT = 300 * 1000
 const val OPEN_FILE_LIMIT_DEFAULT = 30
 const val OPEN_FILE_LIMIT_MIN = 1

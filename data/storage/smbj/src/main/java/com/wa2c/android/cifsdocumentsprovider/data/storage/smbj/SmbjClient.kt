@@ -31,6 +31,7 @@ import com.wa2c.android.cifsdocumentsprovider.common.utils.logE
 import com.wa2c.android.cifsdocumentsprovider.common.utils.logW
 import com.wa2c.android.cifsdocumentsprovider.common.utils.throwStorageCommonException
 import com.wa2c.android.cifsdocumentsprovider.common.values.AccessMode
+import com.wa2c.android.cifsdocumentsprovider.common.values.BUFFER_SIZE
 import com.wa2c.android.cifsdocumentsprovider.common.values.OPEN_FILE_LIMIT_DEFAULT
 import com.wa2c.android.cifsdocumentsprovider.common.values.OPEN_FILE_LIMIT_MAX
 import com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.StorageClient
@@ -130,6 +131,7 @@ class SmbjClient(
                 }
             }
             configBuilder.withSigningEnabled(connection.enableSmbjSecuritySignature)
+            configBuilder.withBufferSize(BUFFER_SIZE)
 
             val config = configBuilder.build()
             val client = SMBClient(config)
