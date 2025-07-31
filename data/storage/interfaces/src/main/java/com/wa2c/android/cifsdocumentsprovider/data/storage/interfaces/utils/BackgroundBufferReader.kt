@@ -146,7 +146,7 @@ class BackgroundBufferReader(
     companion object {
         // 1MB / buffer
         private const val DEFAULT_BUFFER_SIZE = BUFFER_SIZE
-        // 32 Buffers x 1MB = 32MB Total
+        // 32 buffers x 1MB = 32MB total
         private const val DEFAULT_CACHE_BLOCKS = 32
     }
 }
