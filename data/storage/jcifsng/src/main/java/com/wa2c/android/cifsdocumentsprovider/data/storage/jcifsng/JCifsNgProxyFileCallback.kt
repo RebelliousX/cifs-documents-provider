@@ -18,22 +18,22 @@ package com.wa2c.android.cifsdocumentsprovider.data.storage.jcifsng
 
 import android.os.ProxyFileDescriptorCallback
 import android.system.ErrnoException
+import android.system.OsConstants
 import com.wa2c.android.cifsdocumentsprovider.common.utils.logD
 import com.wa2c.android.cifsdocumentsprovider.common.utils.logE
 import com.wa2c.android.cifsdocumentsprovider.common.values.AccessMode
 import com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.utils.BackgroundBufferReader
 import com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.utils.BackgroundBufferWriter
-import com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.utils.checkAccessMode
-import com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.utils.processFileIo
 import jcifs.smb.SmbFile
 import jcifs.smb.SmbRandomAccessFile
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.*
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Proxy File Callback for jCIFS-ng (Buffering IO)
+ * Optimized Proxy File Callback for jCIFS-ng.
+ * - Buffered reader for smooth random access
+ * - Async writer for better throughput
+ * - Avoids frequent handle switching
  */
 internal class JCifsNgProxyFileCallback(
     private val smbFile: SmbFile,
@@ -43,97 +43,87 @@ internal class JCifsNgProxyFileCallback(
 
     override val coroutineContext: CoroutineContext = Dispatchers.IO + Job()
 
-    /** File size */
+    /** File size (lazy to avoid extra network call until needed) */
     private val fileSize: Long by lazy {
-        processFileIo(coroutineContext) { smbFile.length() }
+        runBlocking(coroutineContext) { smbFile.length() }
     }
 
-    private var reader: BackgroundBufferReader? = null
-
-    private var writer: BackgroundBufferWriter? = null
-
+    /** Random access handle reused for writing (optional) */
     private var outputAccess: SmbRandomAccessFile? = null
 
-    private fun getReader(): BackgroundBufferReader {
-        return processFileIo(coroutineContext) {
-            writer?.let {
-                outputAccess?.close()
-                outputAccess = null
-                it.close()
-                writer = null
-                logD("Writer released")
-            }
-
-            reader ?: BackgroundBufferReader(fileSize) { start, array, off, len ->
-                smbFile.openRandomAccess(accessMode.smbMode, SmbFile.FILE_SHARE_READ).use { access ->
-                    access.seek(start)
-                    access.read(array, off, len)
-                }
-            }.also {
-                reader = it
-                logD("Reader created")
+    /** Buffered reader */
+    private val readerLazy = lazy {
+        BackgroundBufferReader(fileSize) { start, array, off, len ->
+            smbFile.openRandomAccess(accessMode.smbMode, SmbFile.FILE_SHARE_READ).use { access ->
+                access.seek(start)
+                access.read(array, off, len)
             }
         }
     }
+    private val reader: BackgroundBufferReader get() = readerLazy.value
 
-    private fun getWriter(): BackgroundBufferWriter {
-        return processFileIo(coroutineContext) {
-            reader?.let {
-                it.close()
-                reader = null
-                logD("Reader released")
-            }
-
-            writer ?: BackgroundBufferWriter { start, array, off, len ->
-                (outputAccess ?: smbFile.openRandomAccess(accessMode.smbMode, SmbFile.FILE_SHARE_WRITE).also { outputAccess = it }).let { access ->
-                    access.seek(start)
-                    access.write(array, off, len)
-                }
-            }.also {
-                writer = it
-                logD("Writer created")
-            }
+    /** Buffered writer */
+    private val writerLazy = lazy {
+        BackgroundBufferWriter { start, array, off, len ->
+            val access = outputAccess ?: smbFile.openRandomAccess(accessMode.smbMode, SmbFile.FILE_SHARE_WRITE)
+                .also { outputAccess = it }
+            access.seek(start)
+            access.write(array, off, len)
         }
     }
+    private val writer: BackgroundBufferWriter? get() = if (accessMode == AccessMode.W) writerLazy.value else null
+
+    /** ==================== ProxyFileDescriptorCallback ==================== */
 
     @Throws(ErrnoException::class)
-    override fun onGetSize(): Long {
-        return fileSize
-    }
+    override fun onGetSize(): Long = fileSize
 
     @Throws(ErrnoException::class)
     override fun onRead(offset: Long, size: Int, data: ByteArray): Int {
-        return processFileIo(coroutineContext) {
-            getReader().readBuffer(offset, size, data)
+        if (accessMode != AccessMode.R && accessMode != AccessMode.W) {
+            throw ErrnoException("EBADF", OsConstants.EBADF)
+        }
+        return try {
+            runBlocking { reader.readBuffer(offset, size, data) }
+        } catch (e: Exception) {
+            logE(e)
+            throw ErrnoException("EIO", OsConstants.EIO)
         }
     }
 
     @Throws(ErrnoException::class)
     override fun onWrite(offset: Long, size: Int, data: ByteArray): Int {
-        return processFileIo(coroutineContext) {
-            checkAccessMode(accessMode)
-            getWriter().writeBuffer(offset, size, data)
+        if (accessMode != AccessMode.W) throw ErrnoException("EBADF", OsConstants.EBADF)
+        return try {
+            writer?.writeBuffer(offset, size, data) ?: 0
+        } catch (e: Exception) {
+            logE(e)
+            throw ErrnoException("EIO", OsConstants.EIO)
         }
     }
 
     @Throws(ErrnoException::class)
     override fun onFsync() {
-        // Nothing to do
+        try {
+            writer?.close() // flush all buffered writes
+        } catch (e: Exception) {
+            logE(e)
+        }
     }
 
     @Throws(ErrnoException::class)
     override fun onRelease() {
-        logD("onRelease")
-        processFileIo(coroutineContext) {
-            reader?.close()
-            writer?.close()
+        logD("onRelease: ${smbFile.uncPath}")
+        runBlocking(coroutineContext) {
             try {
+                if (readerLazy.isInitialized()) reader.close()
+                if (writerLazy.isInitialized()) writer?.close()
                 outputAccess?.close()
+                onFileRelease()
             } catch (e: Exception) {
                 logE(e)
             }
-            onFileRelease()
         }
+        logD("Release complete: ${smbFile.uncPath}")
     }
-
 }

@@ -23,6 +23,7 @@
  */
 package com.wa2c.android.cifsdocumentsprovider.data.storage.interfaces.utils
 
+import com.wa2c.android.cifsdocumentsprovider.common.values.BUFFER_SIZE
 import kotlinx.coroutines.*
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
@@ -143,7 +144,9 @@ class BackgroundBufferReader(
     )
 
     companion object {
-        private const val DEFAULT_BUFFER_SIZE = 512 * 1024 // 512 KB
-        private const val DEFAULT_CACHE_BLOCKS = 32        // ~16 MB cache
+        // 1MB / buffer
+        private const val DEFAULT_BUFFER_SIZE = BUFFER_SIZE
+        // 32 Buffers x 1MB = 32MB Total
+        private const val DEFAULT_CACHE_BLOCKS = 32
     }
 }

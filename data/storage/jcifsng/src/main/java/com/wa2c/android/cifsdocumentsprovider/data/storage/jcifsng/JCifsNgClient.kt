@@ -57,8 +57,8 @@ class JCifsNgClient(
     /** Handler for delayed operations */
     private val handler = Handler(Looper.getMainLooper())
 
-    /** Sequential operation window */
-    private val sequentialWindowMs = 250
+    /** post delay in milliseconds to decrement active file count after a file is released */
+    private val delayDecrement = 250
 
     /** Session cache */
     private val contextCache = object : LruCache<StorageConnection, CIFSContext>(OPEN_FILE_LIMIT_MAX) {
@@ -320,7 +320,13 @@ class JCifsNgClient(
             // 1. Explicitly enabled in connection settings
             // 2. Multiple files open globally
             // Use Native I/O (non-safe proxy callback) only if there is one file opened globally
-            val useSafe = request.connection.safeTransfer || currentGlobalCount > 1
+            // but if the same file is opened more than once within delay period, then do not use
+            // safe callback
+            var useSafe = request.connection.safeTransfer || currentGlobalCount > 1
+            // some apps have bizarre file operation. They open a file, read some data, close it
+            // then open it again within milliseconds. We want to use buffered mode in case file
+            // is big and using safe callbacks then will be extremely slow (about 6 times slower).
+            if (currentFileCount > 1) useSafe = false
 
             val release: suspend () -> Unit = {
                 try {
@@ -337,7 +343,7 @@ class JCifsNgClient(
                         activeFiles.computeIfPresent(fileUri) { _, count ->
                             if (count > 1) count - 1 else null
                         }
-                    }, sequentialWindowMs.toLong())
+                    }, delayDecrement.toLong())
 
                     onFileRelease()
                 }
